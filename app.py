@@ -79,7 +79,7 @@ def extract_attendance():
 def add_attendance(name):
     username = name.split('_')[0]
     userid = name.split('_')[1]
-    current_time = (datetime.now()+timedelta(hours=5.5)).strftime("%H:%M:%S")
+    current_time = (datetime.utcnow()+timedelta(hours=5.5)).strftime("%H:%M:%S")
 
     exists = conn.read(f'SELECT EXISTS(SELECT * FROM \"{date_today}\" WHERE roll={userid})')
     if exists[0][0] == 0:
