@@ -139,6 +139,14 @@
         function openNewWindow() {
             window.open('/video', '_blank', 'height=500,width=660');
         }
+       
+         function submitForm(event) {
+           event.preventDefault();
+           var form = event.target;
+           var newWindow = window.open("", "newWindow", "width=650,height=580");
+           form.target = "newWindow";
+           form.submit();
+        }
 
         setInterval(clock, 1000);
     </script>
