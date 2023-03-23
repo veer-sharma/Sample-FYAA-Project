@@ -134,39 +134,32 @@ def start():
 
 
 #### This function will run when we add a new user
-@app.route('/add', methods=['GET', 'POST'])
-def add():
-    newusername = request.form['newusername']
-    newuserid = request.form['newuserid']
-    userimagefolder = 'static/faces/' + newusername + '_' + str(newuserid)
-    if not os.path.isdir(userimagefolder):
-        os.makedirs(userimagefolder)
-    cap = cv2.VideoCapture(0)
-    i, j = 0, 0
-    while 1:
-        _, frame = cap.read()
-        faces = extract_faces(frame)
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 20), 2)
-            cv2.putText(frame, f'Images Captured: {i}/20', (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 20), 2,
-                        cv2.LINE_AA)
-            if j % 10 == 0:
-                name = newusername + '_' + str(i) + '.jpg'
-                cv2.imwrite(userimagefolder + '/' + name, frame[y:y + h, x:x + w])
-                i += 1
-            j += 1
-        if j == 200:
-            break
-        cv2.imshow('Adding new User', frame)
-        if cv2.waitKey(1) == 27:
-            break
-    cap.release()
-    cv2.destroyAllWindows()
+@app.route('/start_capture', methods=['GET', 'POST'])
+def start_capture():
+    # Start capturing logic goes here
+    global namem, roll
+    namem = request.form.get('newusername')
+    roll = request.form.get('newuserid')
+    return render_template('capture4.html')
+
+@app.route('/save', methods=['POST'])
+def save():
+    dataUrl = request.json['dataUrl']
+    index = request.json['index']
+    directory = os.path.join(app.static_folder, 'faces', str(f'{namem}_{roll}'))
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    filename = f'{namem}_{index-1}.jpg'
+    filepath = f'{directory}'
+    # Decode Base64-encoded image data and convert to NumPy array
+    image_data = dataUrl
+    img_bytes = base64.b64decode(image_data.split(',')[1])
+    img_np = np.frombuffer(img_bytes, dtype=np.uint8)
+    img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+    cv2.imwrite(f'{filepath}\{filename}', img)
     print('Training Model')
     train_model()
-    userDetails = extract_attendance()
-    return render_template('home.html', l=len(userDetails), totalreg=totalreg(),
-                           datetoday2=datetoday2(), userDetails=userDetails)
+    return '', 204
 
 
 #### Our main function which runs the Flask App
