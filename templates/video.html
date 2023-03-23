@@ -13,11 +13,16 @@
 			border-radius: 0.3em;
 			cursor: pointer;
 		}
+    	body {
+            background-image: url('https://cutewallpaper.org/21/1920-x-1080-gif/1920x1080-Wallpapercartoon-Wallpapers-Driverlayer-Search-.gif');
+		}
     </style>
 </head>
 <body>
     <video id="video" width="640" height="480" autoplay></video>
+    <div style="text-align: center;">
     <button id="capture-btn">Capture Image</button>
+    </div>
     <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
     <script>
         var video = document.querySelector('#video');
