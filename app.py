@@ -141,7 +141,7 @@ def start_capture():
     global namem, roll
     namem = request.form.get('newusername')
     roll = request.form.get('newuserid')
-    return render_template('capture4.html')
+    return render_template('capture.html')
 
 @app.route('/save', methods=['POST'])
 def save():
