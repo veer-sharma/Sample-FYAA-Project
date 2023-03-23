@@ -13,7 +13,8 @@ from connect import conn
 #### Defining Flask App
 app = Flask(__name__)
 
-
+namem = ""
+roll = ""
 
 #### Saving Date today in 2 different formats
 def datetoday():
