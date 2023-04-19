@@ -157,6 +157,11 @@ def start():
 def start_capture():
     # Start capturing logic goes here
     global namem, roll
+    directory2 = os.path.join(app.static_folder,
+                              'face-recog-attendance-sy-1d97a-firebase-adminsdk-l3ltw-7df251c3f9.json')
+    # Initialize Firebase credentials
+    cred = credentials.Certificate(directory2)
+    firebase_admin.initialize_app(cred, {'storageBucket': 'face-recog-attendance-sy-1d97a.appspot.com'})
     namem = request.form.get('newusername')
     roll = request.form.get('newuserid')
     return render_template('capture.html')
