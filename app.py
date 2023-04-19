@@ -8,6 +8,9 @@ from sklearn.neighbors import KNeighborsClassifier
 import joblib
 import base64
 import time
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import storage
 from connect import conn
 
 #### Defining Flask App
@@ -57,10 +60,25 @@ def identify_face(facearray):
 def train_model():
     faces = []
     labels = []
-    userlist = os.listdir('static/faces')
-    for user in userlist:
-        for imgname in os.listdir(f'static/faces/{user}'):
-            img = cv2.imread(f'static/faces/{user}/{imgname}')
+    bucket = storage.bucket()
+    blob_list = bucket.list_blobs(prefix='faces/')
+    for blob in blob_list:
+        # Get blob name and split into path components
+        blob_name = blob.name
+        path_parts = blob_name.split('/')
+        if len(path_parts) == 3:  # Check that path has correct number of components
+            # Extract user name and image file name from path
+            user = path_parts[1]
+            print(f"user:{user}")
+            imgname = path_parts[2]
+            print(f"imgname:{imgname}")
+
+            # Download image file to memory and read with OpenCV
+            img_bytes = blob.download_as_bytes()
+            nparr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+            # Resize image and add to faces and labels lists
             resized_face = cv2.resize(img, (50, 50))
             faces.append(resized_face.ravel())
             labels.append(user)
@@ -147,19 +165,19 @@ def start_capture():
 def save():
     dataUrl = request.json['dataUrl']
     index = request.json['index']
-    directory = os.path.join(app.static_folder, 'faces', str(f'{namem}_{roll}'))
-    if not os.path.exists(directory):
-        os.makedirs(directory)
     filename = f'{namem}_{index-1}.jpg'
-    filepath = f'{directory}'
+    bucket = storage.bucket()
     # Decode Base64-encoded image data and convert to NumPy array
     image_data = dataUrl
     img_bytes = base64.b64decode(image_data.split(',')[1])
-    img_np = np.frombuffer(img_bytes, dtype=np.uint8)
-    img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
-    cv2.imwrite(f'{filepath}\{filename}', img)
-    print('Training Model')
-    train_model()
+
+    # Upload image to Firebase Storage
+    blob = bucket.blob(f'faces/{namem}_{roll}/{filename}')
+    blob.upload_from_string(img_bytes, content_type='image/jpeg')
+    print(f"Image {filename} uploaded to Firebase Storage")
+    if index == 20:
+        print('Training Model')
+        train_model()
     return '', 204
 
 
