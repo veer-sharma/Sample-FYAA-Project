@@ -46,11 +46,10 @@ date_today = datetoday()
 def totalreg():
     bucket = storage.bucket()
     blob_list = bucket.list_blobs(prefix='faces/')
-    folder_count = 1
+    folder_list = set()
     for blob in blob_list:
-        if blob.name.endswith('/'):
-            folder_count += 1
-    return folder_count
+        folder_list.add(blob.name.split('/')[1])
+    return len(folder_list)
 
 
 #### extract the face from an image
