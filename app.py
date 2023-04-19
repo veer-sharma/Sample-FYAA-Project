@@ -15,7 +15,11 @@ from connect import conn
 
 #### Defining Flask App
 app = Flask(__name__)
-
+directory2 = os.path.join(app.static_folder,
+                          'face-recog-attendance-sy-1d97a-firebase-adminsdk-l3ltw-7df251c3f9.json')
+# Initialize Firebase credentials
+cred = credentials.Certificate(directory2)
+firebase_admin.initialize_app(cred, {'storageBucket': 'face-recog-attendance-sy-1d97a.appspot.com'})
 namem = ""
 roll = ""
 
@@ -40,7 +44,13 @@ date_today = datetoday()
 
 #### get a number of total registered users
 def totalreg():
-    return len(os.listdir('static/faces'))
+    bucket = storage.bucket()
+    blob_list = bucket.list_blobs(prefix='faces/')
+    folder_count = 1
+    for blob in blob_list:
+        if blob.name.endswith('/'):
+            folder_count += 1
+    return folder_count
 
 
 #### extract the face from an image
@@ -157,11 +167,6 @@ def start():
 def start_capture():
     # Start capturing logic goes here
     global namem, roll
-    directory2 = os.path.join(app.static_folder,
-                              'face-recog-attendance-sy-1d97a-firebase-adminsdk-l3ltw-7df251c3f9.json')
-    # Initialize Firebase credentials
-    cred = credentials.Certificate(directory2)
-    firebase_admin.initialize_app(cred, {'storageBucket': 'face-recog-attendance-sy-1d97a.appspot.com'})
     namem = request.form.get('newusername')
     roll = request.form.get('newuserid')
     return render_template('capture.html')
