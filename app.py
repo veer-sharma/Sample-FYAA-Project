@@ -64,7 +64,7 @@ def identify_face(facearray):
     model = joblib.load('static/face_recognition_model.pkl')
     return model.predict(facearray)
 
-
+@app.route('/train')
 #### A function which trains the model on all the faces available in faces folder
 def train_model():
     faces = []
