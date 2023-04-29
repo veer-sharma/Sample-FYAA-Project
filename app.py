@@ -4,8 +4,7 @@ from flask import Flask, request, render_template
 from datetime import date
 from datetime import datetime, timedelta
 import numpy as np
-from sklearn.neighbors import KNeighborsClassifier
-import joblib
+import face_recognition
 import base64
 import time
 import firebase_admin
@@ -22,6 +21,8 @@ cred = credentials.Certificate(directory2)
 firebase_admin.initialize_app(cred, {'storageBucket': 'face-recog-attendance-sy-1d97a.appspot.com'})
 namem = ""
 roll = ""
+class_names = []
+encode_known = []
 
 #### Saving Date today in 2 different formats
 def datetoday():
@@ -34,11 +35,7 @@ def datetoday2():
 
 #### Initializing VideoCapture object to access WebCam
 face_detector = cv2.CascadeClassifier('static/haarcascade_frontalface_default.xml')
-#cap = cv2.VideoCapture(0)
 
-#### If these directories don't exist, create them
-if not os.path.isdir('static/faces'):
-    os.makedirs('static/faces')
 date_today = datetoday()
 
 
@@ -46,55 +43,40 @@ date_today = datetoday()
 def totalreg():
     bucket = storage.bucket()
     blob_list = bucket.list_blobs(prefix='faces/')
-    folder_list = set()
-    for blob in blob_list:
-        folder_list.add(blob.name.split('/')[1])
-    return len(folder_list)
-
-
-#### extract the face from an image
-def extract_faces(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    face_points = face_detector.detectMultiScale(gray, 1.3, 5)
-    return face_points
+    count = sum(1 for blob in blob_list if blob.name.endswith('.jpg'))
+    return count
 
 
 #### Identify face using ML model
 def identify_face(facearray):
-    model = joblib.load('static/face_recognition_model.pkl')
-    return model.predict(facearray)
+    for i, enc in enumerate(encode_known):
+    if face_recognition.compare_faces([enc], facearray)[0]:
+        return class_names[i]
+    return None
 
 @app.route('/train')
 #### A function which trains the model on all the faces available in faces folder
 def train_model():
-    faces = []
-    labels = []
+    global class_names, encode_known
+    class_names = []
+    encode_known = []
     bucket = storage.bucket()
     blob_list = bucket.list_blobs(prefix='faces/')
+    # Loop through blobs and encode faces
     for blob in blob_list:
-        # Get blob name and split into path components
-        blob_name = blob.name
-        path_parts = blob_name.split('/')
-        if len(path_parts) == 3:  # Check that path has correct number of components
-            # Extract user name and image file name from path
-            user = path_parts[1]
-            print(f"user:{user}")
-            imgname = path_parts[2]
-            print(f"imgname:{imgname}")
+        # Download image file to memory and read with OpenCV
+        img_bytes = blob.download_as_bytes()
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        class_names.append(blob.name[6:-4])
 
-            # Download image file to memory and read with OpenCV
-            img_bytes = blob.download_as_bytes()
-            nparr = np.frombuffer(img_bytes, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        # Convert color format and locate face in the image
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        boxes = face_recognition.face_locations(img)
 
-            # Resize image and add to faces and labels lists
-            resized_face = cv2.resize(img, (50, 50))
-            faces.append(resized_face.ravel())
-            labels.append(user)
-    faces = np.array(faces)
-    knn = KNeighborsClassifier(n_neighbors=5)
-    knn.fit(faces, labels)
-    joblib.dump(knn, 'static/face_recognition_model.pkl')
+        # Encode face and add to encodings list
+        encodes_cur_frame = face_recognition.face_encodings(img, boxes)[0]
+        encode_known.append(encodes_cur_frame)
 
 
 #### Extract info from today's attendance file in attendance folder
@@ -139,22 +121,27 @@ def video():
 # This function will run when we click on Take Attendance Button
 @app.route('/start', methods=['GET', 'POST'])
 def start():
-    if 'face_recognition_model.pkl' not in os.listdir('static'):
-        return render_template('home.html', totalreg=totalreg(), datetoday2=datetoday2(),
-                               mess='There is no trained model in the static folder. Please add a new face to continue.')
-
     image_data = request.json['image']
     # Decode Base64-encoded image data and convert to NumPy array
     img_bytes = base64.b64decode(image_data.split(',')[1])
     img_np = np.frombuffer(img_bytes, dtype=np.uint8)
-    frame = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+    img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
 
-    if extract_faces(frame) != ():
-        (x, y, w, h) = extract_faces(frame)[0]
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 20), 2)
-        face = cv2.resize(frame[y:y + h, x:x + w], (50, 50))
-        identified_person = identify_face(face.reshape(1, -1))[0]
+    # Convert image from BGR (OpenCV default) to RGB (face_recognition default)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # Get face locations in the image
+    face_locations = face_recognition.face_locations(img_rgb)
+
+    # Get face encodings from the locations
+    face_encodings = face_recognition.face_encodings(img_rgb, face_locations)[0]
+    print(face_encodings)
+    train_model()
+    identified_person = identify_face(face_encodings)
+    if identified_person != None:
         add_attendance(identified_person)
+    else:
+        print('person Not identified')
 
     userDetails = extract_attendance()
     return render_template('home.html', l=len(userDetails), totalreg=totalreg(),
@@ -173,21 +160,17 @@ def start_capture():
 @app.route('/save', methods=['POST'])
 def save():
     dataUrl = request.json['dataUrl']
-    index = request.json['index']
-    filename = f'{namem}_{index-1}.jpg'
+    filename = f'{namem}_{roll}.jpg'
     bucket = storage.bucket()
     # Decode Base64-encoded image data and convert to NumPy array
     image_data = dataUrl
     img_bytes = base64.b64decode(image_data.split(',')[1])
 
     # Upload image to Firebase Storage
-    blob = bucket.blob(f'faces/{namem}_{roll}/{filename}')
+    blob = bucket.blob(f'faces/{filename}')
     blob.upload_from_string(img_bytes, content_type='image/jpeg')
     print(f"Image {filename} uploaded to Firebase Storage")
-    if index == 20:
-        print('Training Model')
-        train_model()
-    return '', 204
+    return ''
 
 
 #### Our main function which runs the Flask App
